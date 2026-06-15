@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stranger to Friends</title>
+    <link rel="icon" type="image/jpeg" href="logo.jpg">
+    <link href="STF.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div>
+            <h2>Stranger to Friends</h2>
+            <p>produced by-ERAS</p>
+        </div>
+
+        <div class="right-header" id="headerAuth">
+            <a href="STF%20login.html"><button class="login-btn">🔒 Login</button></a>
+            <span class="active-status">● Active</span>
+        </div>
+    </header>
+
+    <!-- Main Section -->
+    <section class="container">
+        <button class="how-btn">HOW IT WORKS</button>
+        <h1>Simple. Fast. Life-Saving.</h1>
+        <p class="subtitle">Connect blood donors with recipients in 3 easy steps</p>
+
+        <div class="card-wrapper">
+            <!-- Card 1 -->
+            <div class="card">
+                <div class="number">1</div>
+                <div class="icon">📝</div>
+                <h3>Create Account</h3>
+                <p>Register as a donor or recipient with your phone number, blood group, and secure details.</p>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="card">
+                <div class="number">2</div>
+                <div class="icon">🔍</div>
+                <h3>Find Match</h3>
+                <p>Our system instantly matches recipients with compatible donors in their city.</p>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="card">
+                <div class="number">3</div>
+                <div class="icon">📞</div>
+                <h3>Connect & Call</h3>
+                <p>Once donor accepts, call directly and without knowing your mobile number and email ID .</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Row -->
+    <section class="features">
+        <div class="feature-box">
+            <div class="f-icon green">🔒</div>
+            <div>
+                <h4>Password Protected</h4>
+                <p>Secure authentication</p>
+            </div>
+        </div>
+
+        <div class="feature-box">
+            <div class="f-icon yellow">⚡</div>
+            <div>
+                <h4>Instant Matching</h4>
+                <p>Real-time results</p>
+            </div>
+        </div>
+
+        <div class="feature-box">
+            <div class="f-icon red">📍</div>
+            <div>
+                <h4>Location Based</h4>
+                <p>Find donors nearby</p>
+            </div>
+        </div>
+
+        <div class="feature-box">
+            <div class="f-icon purple">🔐</div>
+            <div>
+                <h4>Privacy First</h4>
+                <p>Data protection</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats">
+        <div class="stat-card">
+            <div class="stat-icon heart">❤️</div>
+            <div>
+                <p>Active Donors</p>
+                <h2 id="donorCountDisplay">0</h2>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon search">🔎</div>
+            <form action="STF3.html">
+                <div>
+                    <p>Blood Requests</p>
+                    <h2 id="bloodRequestCount">0</h2>
+                </div>
+
+            </form>
+        </div>
+
+        <div class="stat-card highlight">
+            <div class="stat-icon check">✔</div>
+            <div>
+                <p>Lives Saved</p>
+                <h2 id="livesSavedCount">0</h2>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Action Cards Section -->
+    <section class="action-section">
+        <div class="action-card">
+            <form action="STF2.html">
+                <div class="action-icon heart">❤️</div>
+                <h3>Become a Donor</h3>
+                <p>Register to save lives. Your blood can help someone in critical need.</p>
+                <button class="btn-primary">Register as Donor →</button>
+            </form>
+        </div>
+
+        <div class="action-card">
+            <div class="action-icon search">🔎</div>
+            <form action="STF3.html">
+                <h3>Find a Donor</h3>
+                <p>Search for blood donors in your area. Get instant contact details.</p>
+                <button class="btn-outline">Request Blood →</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Blood Compatibility Guide -->
+    <section class="blood-guide">
+        <h2>🩸 Blood Compatibility Guide</h2>
+        <div class="blood-wrapper">
+            <div class="blood-card-red">
+                <h4>O- (Universal Donor)</h4>
+                <p><strong>Can donate to:</strong> All blood types</p>
+            </div>
+            <div class="blood-card-blue">
+                <h4>AB+ (Universal Receiver)</h4>
+                <p><strong>Can donate to:</strong> AB+ only</p>
+            </div>
+            <div class="blood-card-green">
+                <h4>A, B, O Positive</h4>
+                <p><strong>Can donate to:</strong> Same type + AB+</p>
+            </div>
+            <div class="blood-card-purple">
+                <h4>A, B, AB Negative</h4>
+                <p><strong>Can donate to:</strong> Same type ± variants</p>
+                <p><strong>Can receive from:</strong> Negative types only</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Important Warning Box -->
+    <div class="important-box">
+        ⚠ <strong>Important:</strong> Always verify blood compatibility with medical professionals before donation. 
+        This guide is for reference only.
+    </div>
+
+    <!-- Footer Text -->
+    <footer class="footer-note">
+        <p>Save lives by donating blood. Your privacy is protected.</p>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Inline home page logic moved to app.js but kept safe here for redundancy
+        const donorInfo = JSON.parse(localStorage.getItem('donorInfo'));
+        if (donorInfo) {
+            const authContainer = document.getElementById('headerAuth');
+            if (authContainer) {
+                authContainer.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <a href="donor-dashboard.html" style="text-decoration:none; color:#333; font-weight:bold;">
+                            👤 ${donorInfo.fullName}
+                        </a>
+                        <button onclick="localStorage.removeItem('donorInfo'); window.location.reload();" 
+                                style="background:#ff4b2b; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Logout</button>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

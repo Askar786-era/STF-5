@@ -1,0 +1,117 @@
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI;
+}
+
+body{
+background:linear-gradient(to right,#d7d0d0,#e8e4e4);
+height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+}
+
+.container{
+display:flex;
+justify-content:center;
+align-items:center;
+}
+
+.card{
+width:420px;
+background:white;
+padding:40px;
+border-radius:20px;
+box-shadow:0 20px 40px rgba(0,0,0,0.15);
+text-align:center;
+}
+
+/* top title */
+
+.top-title{
+color:#c62020;
+font-weight:700;
+letter-spacing:3px;
+font-size:13px;
+margin-bottom:20px;
+}
+
+/* logo */
+
+.logo{
+width:120px;
+height:120px;
+border-radius:50%;
+border:6px solid #c62020;
+display:flex;
+justify-content:center;
+align-items:center;
+font-size:40px;
+margin:auto;
+margin-bottom:15px;
+}
+
+/* text */
+
+.tagline{
+color:#c62020;
+font-size:13px;
+margin-bottom:15px;
+font-style:italic;
+}
+
+h1{
+color:#c62020;
+margin-bottom:6px;
+}
+
+.subtitle{
+color:#5a6d84;
+margin-bottom:25px;
+}
+
+/* form */
+
+form{
+text-align:left;
+}
+
+label{
+display:block;
+margin-top:12px;
+font-size:14px;
+}
+
+input{
+width:100%;
+padding:12px;
+margin-top:6px;
+border-radius:10px;
+border:1px solid #ddd;
+font-size:14px;
+}
+
+input:focus{
+outline:none;
+border-color:#c62020;
+}
+
+/* button */
+
+.login-btn{
+width:100%;
+margin-top:20px;
+padding:13px;
+border:none;
+border-radius:12px;
+background:linear-gradient(to right,#e21b1b,#c41414);
+color:white;
+font-size:16px;
+cursor:pointer;
+}
+
+.login-btn:hover{
+opacity:0.9;
+}
