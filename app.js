@@ -182,16 +182,12 @@ if (searchForm) {
         const zipCode = document.getElementById('searchZip').value;
         const hospital = document.getElementById('requestMessage').value;
 
-        // Auto-fill logged-in donor's phone if available
-        const donorInfo = JSON.parse(localStorage.getItem('donorInfo'));
-        const phone = donorInfo ? donorInfo.phone : "";
-
         try {
             // Save the blood request in the database
             await fetch(`${BASE_URL}/blood-requests`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patientName, phone, bloodGroup, city, state, zipCode, hospital, message: hospital })
+                body: JSON.stringify({ patientName, bloodGroup, city, state, zipCode, hospital, message: hospital })
             });
         } catch (err) {
             console.error('Error saving blood request:', err);

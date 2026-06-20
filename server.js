@@ -1,3 +1,17 @@
+const fs = require('fs');
+const path = require('path');
+if (fs.existsSync(path.join(__dirname, '.env'))) {
+    const envConfig = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    envConfig.split('\n').forEach(line => {
+        const parts = line.split('=');
+        if (parts.length > 1) {
+            const key = parts[0].trim();
+            const val = parts.slice(1).join('=').trim().replace(/(^['"]|['"]$)/g, '');
+            process.env[key] = val;
+        }
+    });
+}
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -5,7 +19,6 @@ const http = require('http');
 const Donor = require('./models/Donor');
 const Stats = require('./models/Stats');
 const BloodRequest = require('./models/BloodRequest');
-const path = require('path');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -13,6 +26,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const onlineDonors = {}; 
+const activeCalls = {}; 
 
 // SMS Gateway Integration (MSG91, Fast2SMS, Twilio)
 const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY;
@@ -180,9 +194,24 @@ io.on('connection', (socket) => {
     socket.on('disconnect', async () => {
         await Donor.findOneAndUpdate({ socketId: socket.id }, { isOnline: false, socketId: null });
         io.emit('donorCountUpdate', await Donor.countDocuments());
+
+        // Handle disconnect during active call
+        const peerSocketId = activeCalls[socket.id];
+        if (peerSocketId) {
+            io.to(peerSocketId).emit('callEnded');
+            delete activeCalls[peerSocketId];
+            delete activeCalls[socket.id];
+        }
     });
 
-
+    socket.on('endCall', () => {
+        const peerSocketId = activeCalls[socket.id];
+        if (peerSocketId) {
+            io.to(peerSocketId).emit('callEnded');
+            delete activeCalls[peerSocketId];
+            delete activeCalls[socket.id];
+        }
+    });
 
     // Call Signaling
     socket.on('callUser', async ({ donorPhone, signalData, callerName }) => {
@@ -198,8 +227,19 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('answerCall', async (data) => {
+        activeCalls[socket.id] = data.to;
+        activeCalls[data.to] = socket.id;
+        io.to(data.to).emit('callAccepted', { signal: data.signal, donorSocket: socket.id });
 
-    socket.on('answerCall', (data) => io.to(data.to).emit('callAccepted', { signal: data.signal, donorSocket: socket.id }));
+        // Increment lives saved when the call is accepted/attended
+        try {
+            const stat = await Stats.findOneAndUpdate({ key: 'livesSaved' }, { $inc: { value: 1 } }, { upsert: true, new: true });
+            io.emit('globalStatsUpdate', { livesSaved: stat.value });
+        } catch (err) {
+            console.error('Error incrementing lives saved stats:', err);
+        }
+    });
     socket.on('iceCandidate', (data) => io.to(data.to).emit('iceCandidate', data.candidate));
 });
 

@@ -184,15 +184,16 @@
                             <span class="blood-badge">${req.bloodGroup}</span>
                         </div>
                         <div class="request-details">
-                            ${req.phone ? `<div><strong>Phone:</strong> ${req.phone}</div>` : ''}
                             ${req.hospital ? `<div><strong>Hospital:</strong> ${req.hospital}</div>` : ''}
                             ${req.message ? `<div><strong>Message:</strong> ${req.message}</div>` : ''}
                             <div style="margin-top: 5px; color: #999; font-size: 11px;">Requested: ${formattedDate}</div>
                         </div>
+                        ${req.phone ? `
                         <div class="request-actions">
                             <button class="call-btn" onclick="window.open('call.html?phone=${req.phone || ''}&name=${encodeURIComponent(req.patientName)}', 'STF_Call', 'width=400,height=600')">📞 Call</button>
                             <button class="msg-btn" onclick="openChat('${req.phone || ''}', '${req.patientName}')">💬 Message</button>
                         </div>
+                        ` : ''}
                     `;
                     listEl.appendChild(card);
                 });
