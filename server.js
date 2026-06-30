@@ -21,6 +21,7 @@ const Donor = require('./models/Donor');
 const Stats = require('./models/Stats');
 const BloodRequest = require('./models/BloodRequest');
 const { Server } = require('socket.io');
+const { decrypt, deterministicHash } = require('./utils/crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -77,8 +78,6 @@ async function sendSMS(to, body) {
     // 2. Fast2SMS (Indian Gateway)
     if (FAST2SMS_API_KEY) {
         try {
-            // cleanPhone is already defined above
-            
             const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
                 method: 'POST',
                 headers: {
@@ -106,7 +105,7 @@ async function sendSMS(to, body) {
         }
     }
 
-    // 2. Twilio (Global Gateway)
+    // 3. Twilio (Global Gateway)
     if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_PHONE_NUMBER) {
         try {
             let formattedPhone = to;
@@ -148,7 +147,7 @@ async function sendSMS(to, body) {
         }
     }
 
-    // 3. Fallback to Simulation (if no credentials are set)
+    // 4. Fallback to Simulation (if no credentials are set)
     console.log(`[SMS SIMULATION] To: ${to} | Message: ${body}`);
     return { success: true, simulated: true };
 }
@@ -218,7 +217,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('donorOnline', async (phone) => {
-        await Donor.findOneAndUpdate({ phone }, { isOnline: true, socketId: socket.id });
+        // Use phoneHash for lookup
+        const hash = deterministicHash(phone);
+        await Donor.findOneAndUpdate({ phoneHash: hash }, { isOnline: true, socketId: socket.id });
         onlineDonors[phone] = socket.id;
         // We still show total registered donors on the home page stats for "Active Donors"
         io.emit('donorCountUpdate', await Donor.countDocuments());
@@ -260,12 +261,15 @@ io.on('connection', (socket) => {
         const targetType = type || 'donor';
 
         if (targetType === 'donor') {
-            const donor = await Donor.findOne({ phone: targetPhone });
+            // Use phoneHash for lookup
+            const hash = deterministicHash(targetPhone);
+            const donor = await Donor.findOne({ phoneHash: hash });
             if (donor && donor.isOnline && donor.socketId) {
                 io.to(donor.socketId).emit('incomingCall', { signal: signalData, from: callerName, callerSocket: socket.id });
             } else if (donor) {
-                // Donor is offline - Send real SMS Notification
-                await sendSMS(targetPhone, `URGENT BLOOD ALERT: ${callerName} needs your help! Please log in to Stranger to Friends immediately to accept the call.`);
+                // Donor is offline - Send real SMS Notification (decrypt phone for SMS)
+                const realPhone = decrypt(donor.phone);
+                await sendSMS(realPhone, `URGENT BLOOD ALERT: ${callerName} needs your help! Please log in to Stranger to Friends immediately to accept the call.`);
                 socket.emit('callError', { message: 'Donor is offline. An urgent SMS notification has been sent to them!' });
             } else {
                 socket.emit('callError', { message: 'Donor not found.' });
@@ -327,7 +331,8 @@ app.post('/api/blood-requests', async (req, res) => {
         if (req.body.state) req.body.state = req.body.state.trim();
         const newRequest = new BloodRequest(req.body);
         await newRequest.save();
-        res.status(201).json({ success: true, request: newRequest });
+        // Return decrypted data to the client
+        res.status(201).json({ success: true, request: newRequest.decryptFields() });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -341,21 +346,27 @@ app.get('/api/blood-requests/district', async (req, res) => {
         if (state) query.state = { $regex: new RegExp(flexibleRegex(state), "i") };
         
         const requests = await BloodRequest.find(query).sort({ createdAt: -1 });
-        res.json(requests);
+        // Decrypt PII fields before returning
+        const decryptedRequests = requests.map(r => r.decryptFields());
+        res.json(decryptedRequests);
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
 app.post('/api/donors', async (req, res) => {
-    // Trim city, state, and zipCode before saving
-    if (req.body.city) req.body.city = req.body.city.trim();
-    if (req.body.state) req.body.state = req.body.state.trim();
-    if (req.body.zipCode) req.body.zipCode = req.body.zipCode.trim();
-    const newDonor = new Donor(req.body);
-    await newDonor.save();
-    io.emit('donorCountUpdate', await Donor.countDocuments());
-    res.status(201).json({ success: true });
+    try {
+        // Trim city, state, and zipCode before saving
+        if (req.body.city) req.body.city = req.body.city.trim();
+        if (req.body.state) req.body.state = req.body.state.trim();
+        if (req.body.zipCode) req.body.zipCode = req.body.zipCode.trim();
+        const newDonor = new Donor(req.body);
+        await newDonor.save();
+        io.emit('donorCountUpdate', await Donor.countDocuments());
+        res.status(201).json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -364,7 +375,9 @@ app.post('/api/login', async (req, res) => {
         if (!phone || !password) {
             return res.status(400).json({ success: false, error: 'Phone and password are required.' });
         }
-        const donor = await Donor.findOne({ phone });
+        // Use phoneHash for lookup
+        const hash = deterministicHash(phone);
+        const donor = await Donor.findOne({ phoneHash: hash });
         if (!donor) {
             return res.json({ success: false, error: 'Invalid credentials' });
         }
@@ -372,7 +385,8 @@ app.post('/api/login', async (req, res) => {
         if (!isMatch) {
             return res.json({ success: false, error: 'Invalid credentials' });
         }
-        res.json({ success: true, donor });
+        // Return decrypted donor data
+        res.json({ success: true, donor: donor.decryptFields() });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -383,7 +397,9 @@ const activeOTPs = {};
 app.post('/api/forgot-password', async (req, res) => {
     const { phone } = req.body;
     try {
-        const donor = await Donor.findOne({ phone });
+        // Use phoneHash for lookup
+        const hash = deterministicHash(phone);
+        const donor = await Donor.findOne({ phoneHash: hash });
         if (!donor) {
             return res.status(404).json({ success: false, error: 'Donor not registered with this phone number.' });
         }
@@ -397,10 +413,10 @@ app.post('/api/forgot-password', async (req, res) => {
             expiresAt: Date.now() + 5 * 60 * 1000
         };
 
-        // Send OTP via SMS
+        // Send OTP via SMS (use the raw phone from request, not encrypted one from DB)
         const smsResult = await sendSMS(phone, `Your OTP for resetting your Stranger to Friends password is: ${otp}. Valid for 5 minutes.`);
         
-        console.log(`🔑 [OTP] Generated OTP ${otp} for ${phone}`);
+        console.log(`🔑 [OTP] Generated OTP for phone hash ${hash.substring(0, 8)}...`);
         res.json({ success: true, message: 'OTP sent successfully!' });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -425,7 +441,8 @@ app.post('/api/reset-password', async (req, res) => {
         }
 
         // OTP matches and is valid, update password
-        const donor = await Donor.findOne({ phone });
+        const hash = deterministicHash(phone);
+        const donor = await Donor.findOne({ phoneHash: hash });
         if (!donor) {
             return res.status(404).json({ success: false, error: 'Donor not found.' });
         }
@@ -443,7 +460,7 @@ app.post('/api/reset-password', async (req, res) => {
 app.put('/api/donors/:id', async (req, res) => {
     try {
         const updatedDonor = await Donor.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        res.json({ success: true, donor: updatedDonor });
+        res.json({ success: true, donor: updatedDonor.decryptFields() });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -457,10 +474,16 @@ app.get('/api/donors/search', async (req, res) => {
     if (zipCode) query.zipCode = zipCode.trim();
     
     const donors = await Donor.find(query).select('-password');
+    // Decrypt PII fields before returning (exclude password)
+    const decryptedDonors = donors.map(d => {
+        const dec = d.decryptFields();
+        delete dec.password;
+        return dec;
+    });
     
     const stat = await Stats.findOneAndUpdate({ key: 'bloodRequests' }, { $inc: { value: 1 } }, { upsert: true, new: true });
     io.emit('globalStatsUpdate', { bloodRequests: stat.value });
-    res.json(donors);
+    res.json(decryptedDonors);
 });
 
 
@@ -496,8 +519,8 @@ app.post('/api/messages/broadcast', async (req, res) => {
 
     // Build query to find all matching donors in the district
     let query = { bloodGroup };
-    if (city)    query.city    = { $regex: new RegExp(flexibleRegex(city), 'i') };
-    if (state)   query.state   = { $regex: new RegExp(flexibleRegex(state), 'i') };
+    if (city) query.city = { $regex: new RegExp(flexibleRegex(city), 'i') };
+    if (state) query.state = { $regex: new RegExp(flexibleRegex(state), 'i') };
     if (zipCode) query.zipCode = zipCode.trim();
 
     const donors = await Donor.find(query).select('phone fullName');
@@ -508,19 +531,22 @@ app.post('/api/messages/broadcast', async (req, res) => {
 
     // Send SMS to all matching donors (sequentially to avoid rate limits)
     let sentCount = 0;
-const failedPhones = [];
+    const failedPhones = [];
     for (const donor of donors) {
         try {
-            const result = await sendSMS(donor.phone, message);
+            // Decrypt the phone number before sending SMS
+            const realPhone = decrypt(donor.phone);
+            const result = await sendSMS(realPhone, message);
             if (result && result.success) {
                 sentCount++;
-                console.log(`📢 [BROADCAST] SMS sent to ${donor.fullName} (${donor.phone})`);
+                console.log(`📢 [BROADCAST] SMS sent to ${decrypt(donor.fullName)} (${realPhone})`);
             } else {
-                failedPhones.push({ phone: donor.phone, error: result ? result.error : 'Unknown error' });
-                console.error(`❌ [BROADCAST] Failed to send to ${donor.phone}:`, result ? result.error : 'No response');
+                failedPhones.push({ phone: realPhone, error: result ? result.error : 'Unknown error' });
+                console.error(`❌ [BROADCAST] Failed to send to ${realPhone}:`, result ? result.error : 'No response');
             }
         } catch (err) {
-            console.error(`❌ [BROADCAST] Failed to send to ${donor.phone}:`, err.message);
+            failedPhones.push({ phone: 'unknown', error: err.message });
+            console.error(`❌ [BROADCAST] Exception:`, err.message);
         }
     }
 
