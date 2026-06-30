@@ -69,7 +69,7 @@
 
         <div class="controls">
             <button class="btn mute">🎙️</button>
-            <button class="btn hangup" onclick="window.close()">📞</button>
+            <button class="btn hangup" onclick="hangUp()">📞</button>
         </div>
     </div>
 
@@ -79,13 +79,22 @@
     <script>
         const socket = io();
         const urlParams = new URLSearchParams(window.location.search);
-        const donorPhone = urlParams.get('phone');
-        const donorName = urlParams.get('name');
+        const isAnswering = urlParams.get('answer') === 'true';
         
-        document.getElementById('donorName').innerText = donorName || 'Donor';
+        let targetPhone = urlParams.get('phone');
+        let targetName = urlParams.get('name');
+        let callType = urlParams.get('type') || 'donor';
+        
+        if (!isAnswering) {
+            document.getElementById('donorName').innerText = targetName || 'User';
+        } else {
+            document.getElementById('donorName').innerText = 'Incoming Call';
+            document.getElementById('status').innerText = 'Connecting...';
+        }
 
         let localStream;
         let peerConnection;
+        let peerSocketId;
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
         async function startCall() {
@@ -101,27 +110,45 @@
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    socket.emit('iceCandidate', { to: donorSocketId, candidate: event.candidate });
+                    socket.emit('iceCandidate', { to: peerSocketId, candidate: event.candidate });
                 }
             };
 
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
+            if (!isAnswering) {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
 
-            socket.emit('callUser', {
-                donorPhone: donorPhone,
-                signalData: offer,
-                callerName: 'Receiver'
-            });
+                const donorInfo = JSON.parse(localStorage.getItem('donorInfo'));
+                const callerName = donorInfo ? donorInfo.fullName : 'Stranger';
+
+                socket.emit('callUser', {
+                    phone: targetPhone,
+                    signalData: offer,
+                    callerName: callerName,
+                    type: callType
+                });
+            } else {
+                const pending = JSON.parse(localStorage.getItem('pendingCall'));
+                if (pending) {
+                    peerSocketId = pending.callerSocket;
+                    document.getElementById('donorName').innerText = pending.from || 'User';
+                    document.getElementById('status').innerText = 'Accepting...';
+                    
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(pending.signal));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+
+                    socket.emit('answerCall', { signal: answer, to: peerSocketId });
+                    localStorage.removeItem('pendingCall');
+                    document.getElementById('status').innerText = 'Connected';
+                } else {
+                    document.getElementById('status').innerText = 'Call error (No pending call)';
+                }
+            }
         }
 
-        let donorSocketId;
-        socket.on('incomingCall', (data) => {
-            // This script is for the caller. The receiver logic will be in the dashboard.
-        });
-
         socket.on('callAccepted', async (data) => {
-            donorSocketId = data.donorSocket; 
+            peerSocketId = data.donorSocket; 
             document.getElementById('status').innerText = 'Connected';
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
         });
@@ -134,6 +161,22 @@
         socket.on('iceCandidate', (candidate) => {
             if (peerConnection) peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         });
+
+        socket.on('callEnded', () => {
+            document.getElementById('status').innerText = 'Call Ended';
+            if (peerConnection) peerConnection.close();
+            if (localStream) localStream.getTracks().forEach(track => track.stop());
+            setTimeout(() => {
+                window.close();
+            }, 1500);
+        });
+
+        function hangUp() {
+            socket.emit('endCall');
+            if (peerConnection) peerConnection.close();
+            if (localStream) localStream.getTracks().forEach(track => track.stop());
+            window.close();
+        }
 
         startCall().catch(err => {
             console.error('Error starting call:', err);

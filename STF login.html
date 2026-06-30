@@ -24,7 +24,7 @@
 <h1>Stranger to Friends</h1>
 <p class="subtitle">ERAS - Emergency Response & Aid System</p>
 
-<form>
+<form id="loginForm">
 
 <label>📱 Phone Number</label>
 <input type="text" placeholder="Enter 10-digit phone number" required>
@@ -32,8 +32,36 @@
 <label>🔐 Password</label>
 <input type="password" placeholder="Enter your password" required>
 
+<p style="text-align: right; margin-top: 5px; font-size: 13px;">
+  <a href="#" id="forgotPasswordLink" style="color: #666; text-decoration: none;">Forgot Password?</a>
+</p>
+
 <b><button class="login-btn" type="submit"> secure Login →</button></b>
-<p style="text-align: center;">New User?   <a href="STF2.html" style="color: red;">create an account</a></p>
+<p style="text-align: center; margin-top: 15px;">New User?   <a href="STF2.html" style="color: red; text-decoration: none;">create an account</a></p>
+
+</form>
+
+<form id="forgotPasswordForm" style="display: none;">
+
+<label>📱 Registered Phone Number</label>
+<input type="text" id="forgotPhone" placeholder="Enter your phone number" required>
+
+<b><button class="login-btn" type="submit">Send OTP →</button></b>
+<p style="text-align: center; margin-top: 15px;"><a href="#" id="backToLoginLink" style="color: red; text-decoration: none;">Back to Login</a></p>
+
+</form>
+
+<form id="resetPasswordForm" style="display: none;">
+<p style="color: #666; font-size: 13px; text-align: center; margin-bottom: 10px;">Enter the OTP sent to your phone and choose a new password.</p>
+
+<label>🔢 Enter OTP</label>
+<input type="text" id="resetOtp" placeholder="Enter 6-digit OTP" required>
+
+<label>🔑 New Password</label>
+<input type="password" id="resetNewPassword" placeholder="Enter new password" required>
+
+<b><button class="login-btn" type="submit">Reset Password →</button></b>
+<p style="text-align: center; margin-top: 15px;"><a href="#" id="backToLoginLinkReset" style="color: red; text-decoration: none;">Back to Login</a></p>
 
 </form>
 

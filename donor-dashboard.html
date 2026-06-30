@@ -85,6 +85,17 @@
         <p style="font-size: 12px; margin-top: 15px; color: #666;">
             When you are online, people in need can call you directly through the browser.
         </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 15px 0;">
+        <p style="font-size: 12px; color: #666;">
+            For reviews, feedback, and complaints, please email us at:<br>
+            <a href="mailto:strangertofriend37@gmail.com" style="color: #007bff; text-decoration: none; font-weight: bold;">strangertofriend37@gmail.com</a>
+        </p>
+    </div>
+
+    <!-- Active Call Banner -->
+    <div id="activeCallBanner" style="display: none; background: #fff3f3; border: 2px solid #cc0000; border-radius: 20px; padding: 20px; margin-top: 15px; text-align: center; width: 400px; box-sizing: border-box; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+        <p style="margin: 0 0 15px 0; color: #cc0000; font-weight: bold; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px;">🔴 <span id="callStatusText">In Active Call</span></p>
+        <button id="endCallBtn" style="background: #dc3545; color: white; border: none; padding: 12px 25px; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%;">🔴 End Call</button>
     </div>
 
     <div id="callModal">
@@ -255,6 +266,9 @@
 
             document.getElementById('acceptCall').onclick = async () => {
                 document.getElementById('callModal').style.display = 'none';
+                document.getElementById('activeCallBanner').style.display = 'block';
+                document.getElementById('callStatusText').innerText = 'In Call';
+                
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
                 peerConnection = new RTCPeerConnection(config);
@@ -277,6 +291,32 @@
                 socket.emit('answerCall', { signal: answer, to: callerSocketId });
             };
         }
+
+        function endActiveCall() {
+            document.getElementById('activeCallBanner').style.display = 'none';
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            const remoteAudio = document.getElementById('remoteAudio');
+            if (remoteAudio) remoteAudio.srcObject = null;
+        }
+
+        document.getElementById('endCallBtn').onclick = () => {
+            socket.emit('endCall');
+            endActiveCall();
+        };
+
+        socket.on('callEnded', () => {
+            document.getElementById('callStatusText').innerText = 'Call Ended';
+            setTimeout(() => {
+                endActiveCall();
+            }, 1500);
+        });
 
         let callerSocketId;
         socket.on('incomingCall', (data) => {

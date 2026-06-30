@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { encrypt, decrypt, deterministicHash } = require('../utils/crypto');
 
-const donorSchema = new mongoose.Schema({
-    bloodGroup: { type: String, required: true, index: true },
+const receiverSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
     phone: { type: String, required: true },
     phoneHash: { type: String, unique: true, index: true },
@@ -18,10 +17,10 @@ const donorSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-donorSchema.index({ bloodGroup: 1, city: 1, state: 1 });
+receiverSchema.index({ city: 1, state: 1, zipCode: 1 });
 
 // Hash/encrypt fields before saving
-donorSchema.pre('save', async function() {
+receiverSchema.pre('save', async function() {
     // Hash password with bcrypt (one-way)
     if (this.isModified('password')) {
         const salt = await bcrypt.genSalt(10);
@@ -48,10 +47,9 @@ donorSchema.pre('save', async function() {
 });
 
 // Helper to decrypt all PII fields
-donorSchema.methods.decryptFields = function() {
+receiverSchema.methods.decryptFields = function() {
     return {
         _id: this._id,
-        bloodGroup: this.bloodGroup,
         fullName: decrypt(this.fullName),
         phone: decrypt(this.phone),
         password: this.password,
@@ -66,4 +64,4 @@ donorSchema.methods.decryptFields = function() {
     };
 };
 
-module.exports = mongoose.model('Donor', donorSchema);
+module.exports = mongoose.model('Receiver', receiverSchema);
