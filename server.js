@@ -16,6 +16,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
+const bcrypt = require('bcryptjs');
 const Donor = require('./models/Donor');
 const Stats = require('./models/Stats');
 const BloodRequest = require('./models/BloodRequest');
@@ -65,9 +66,11 @@ async function sendSMS(to, body) {
                 return { success: true, provider: 'MSG91' };
             } else {
                 console.error(`❌ MSG91 Error:`, data.message);
+                return { success: false, error: data.message, provider: 'MSG91' };
             }
         } catch (err) {
             console.error(`❌ Error in MSG91 send:`, err.message);
+            return { success: false, error: err.message, provider: 'MSG91' };
         }
     }
 
@@ -95,9 +98,11 @@ async function sendSMS(to, body) {
                 return { success: true, provider: 'Fast2SMS' };
             } else {
                 console.error(`❌ Fast2SMS Error:`, data.message || data);
+                return { success: false, error: data.message || data, provider: 'Fast2SMS' };
             }
         } catch (err) {
             console.error(`❌ Error in Fast2SMS send:`, err.message);
+            return { success: false, error: err.message, provider: 'Fast2SMS' };
         }
     }
 
@@ -135,11 +140,11 @@ async function sendSMS(to, body) {
                 return { success: true, provider: 'Twilio', sid: data.sid };
             } else {
                 console.error(`❌ Twilio Error:`, data.message);
-                return { success: false, error: data.message };
+                return { success: false, error: data.message, provider: 'Twilio' };
             }
         } catch (err) {
             console.error(`❌ Error in Twilio send:`, err.message);
-            return { success: false, error: err.message };
+            return { success: false, error: err.message, provider: 'Twilio' };
         }
     }
 
@@ -354,8 +359,23 @@ app.post('/api/donors', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
-    const donor = await Donor.findOne(req.body);
-    res.json({ success: !!donor, donor });
+    try {
+        const { phone, password } = req.body;
+        if (!phone || !password) {
+            return res.status(400).json({ success: false, error: 'Phone and password are required.' });
+        }
+        const donor = await Donor.findOne({ phone });
+        if (!donor) {
+            return res.json({ success: false, error: 'Invalid credentials' });
+        }
+        const isMatch = await bcrypt.compare(password, donor.password);
+        if (!isMatch) {
+            return res.json({ success: false, error: 'Invalid credentials' });
+        }
+        res.json({ success: true, donor });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 const activeOTPs = {};
@@ -405,10 +425,13 @@ app.post('/api/reset-password', async (req, res) => {
         }
 
         // OTP matches and is valid, update password
-        const donor = await Donor.findOneAndUpdate({ phone }, { password: newPassword }, { new: true });
+        const donor = await Donor.findOne({ phone });
         if (!donor) {
             return res.status(404).json({ success: false, error: 'Donor not found.' });
         }
+        
+        donor.password = newPassword;
+        await donor.save();
 
         delete activeOTPs[phone];
         res.json({ success: true, message: 'Password reset successful!' });
@@ -449,10 +472,18 @@ app.get('/api/stats', async (req, res) => {
 });
 
 app.post('/api/messages/send', async (req, res) => {
-    const result = await sendSMS(req.body.donorPhone, req.body.message);
-    const stat = await Stats.findOneAndUpdate({ key: 'livesSaved' }, { $inc: { value: 1 } }, { upsert: true, new: true });
-    io.emit('globalStatsUpdate', { livesSaved: stat.value });
-    res.json({ success: true, result });
+    try {
+        const result = await sendSMS(req.body.donorPhone, req.body.message);
+        if (result && result.success) {
+            const stat = await Stats.findOneAndUpdate({ key: 'livesSaved' }, { $inc: { value: 1 } }, { upsert: true, new: true });
+            io.emit('globalStatsUpdate', { livesSaved: stat.value });
+            res.json({ success: true, result });
+        } else {
+            res.json({ success: false, error: result ? result.error : 'Failed to send SMS', result });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // Broadcast SMS to ALL donors in a district matching blood group

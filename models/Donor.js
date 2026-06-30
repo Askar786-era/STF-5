@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const donorSchema = new mongoose.Schema({
     bloodGroup: { type: String, required: true, index: true },
@@ -16,5 +17,17 @@ const donorSchema = new mongoose.Schema({
 });
 
 donorSchema.index({ bloodGroup: 1, city: 1, state: 1 });
+
+// Hash password before saving
+donorSchema.pre('save', async function(next) {
+    if (!this.isModified('password')) return next();
+    try {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+        next();
+    } catch (err) {
+        next(err);
+    }
+});
 
 module.exports = mongoose.model('Donor', donorSchema);

@@ -115,12 +115,12 @@ if (donorForm) {
         
         const data = {
             bloodGroup: document.getElementById('regBloodGroup').value,
-            fullName: document.getElementById('regFullName').value,
-            phone: document.getElementById('regPhone').value,
+            fullName: document.getElementById('regFullName').value.trim(),
+            phone: document.getElementById('regPhone').value.trim(),
             password: document.getElementById('regPassword').value,
-            city: document.getElementById('regCity').value,
-            state: document.getElementById('regState').value,
-            zipCode: document.getElementById('regZip').value
+            city: document.getElementById('regCity').value.trim(),
+            state: document.getElementById('regState').value.trim(),
+            zipCode: document.getElementById('regZip').value.trim()
         };
 
 
@@ -191,7 +191,7 @@ if (window.location.pathname.includes('login')) {
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const phone = loginForm.querySelector('input[type="text"]').value;
+            const phone = loginForm.querySelector('input[type="text"]').value.trim();
             const password = loginForm.querySelector('input[type="password"]').value;
 
             try {
@@ -473,18 +473,24 @@ async function confirmBroadcast(bloodGroup, city, state, zipCode) {
 
         document.getElementById('broadcastModal').remove();
 
-        // Show result toast
-        const toast = document.createElement('div');
-        toast.style.cssText = `
-            position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
-            background:#1b5e20; color:white; padding:14px 28px; border-radius:30px;
-            font-size:14px; font-weight:600; z-index:20001;
-            box-shadow:0 8px 25px rgba(0,0,0,0.3);
-            animation: bModalIn 0.3s ease;
-        `;
-        toast.innerHTML = `✅ SMS sent to ${data.sent} of ${data.total} donors in the district!`;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 5000);
+        if (res.ok && data.success) {
+            // Show result toast
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
+                background:#1b5e20; color:white; padding:14px 28px; border-radius:30px;
+                font-size:14px; font-weight:600; z-index:20001;
+                box-shadow:0 8px 25px rgba(0,0,0,0.3);
+                animation: bModalIn 0.3s ease;
+            `;
+            toast.innerHTML = `✅ SMS sent to ${data.sent} of ${data.total} donors in the district!`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '📤 Send to All Donors';
+            alert('Error broadcasting SMS: ' + (data.error || 'Unknown error'));
+        }
     } catch (err) {
         btn.disabled = false;
         btn.innerHTML = '📤 Send to All Donors';
@@ -645,7 +651,8 @@ async function sendChatMessage(phone) {
         } else {
             statusMsg.style.color = '#f44336';
             statusMsg.style.background = '#fff0f0';
-            statusMsg.innerHTML = `❌ Could not send SMS. Try again.`;
+            const errorMsg = data.error || 'Could not send SMS. Try again.';
+            statusMsg.innerHTML = `❌ ${errorMsg}`;
         }
         chatMessages.appendChild(statusMsg);
         chatMessages.scrollTop = chatMessages.scrollHeight;
